@@ -1,0 +1,138 @@
+# StoreFlow POS
+
+An offline-first Point of Sale and inventory management system for small retail
+shops, built with Flutter for **Android** and **Windows**.
+
+No internet connection, no cloud account and no subscription are required. All
+data stays in a local SQLite database on the device.
+
+> **Project status: Phase 1 of 10 complete.**
+> The foundation — architecture, exact-arithmetic money layer, database schema,
+> localisation, theming, routing, the adaptive shell and a database-backed
+> dashboard — is implemented and tested (97 passing tests).
+> **The business modules are not implemented yet.** Point of Sale, products,
+> purchases, customers, suppliers, expenses, cash register, reports, printing,
+> barcode scanning and backup are scheduled for Phases 2–9. Each of those pages
+> currently states on screen that it is pending. See
+> [`docs/development_progress.md`](docs/development_progress.md) for the honest
+> per-module status.
+
+## Features
+
+### Implemented
+
+- **Exact money arithmetic.** Integer minor units with per-currency precision.
+  No `double` anywhere in the money path.
+- **Exact quantities.** Scaled integers at a documented scale of 1000.
+- **Multi-currency foundation.** Rational exchange rates with a documented
+  conversion direction and historical immutability.
+- **Database.** 37 tables, 27 indexes, foreign keys enforced, WAL journalling,
+  versioned schema, idempotent seeding.
+- **Append-only ledgers** for inventory movements, customer accounts and
+  supplier accounts.
+- **Dashboard** with ten live figures, a sales trend chart, top products and
+  recent activity — all computed from posted rows, with no sample data.
+- **Period filters:** today, yesterday, this week, this month, custom range.
+- **Arabic and English**, Arabic by default, with correct RTL layout.
+- **Platform-adaptive UI:** navigation rail on wide windows, bottom navigation
+  on phones. Not a stretched phone layout.
+- **Material 3** light and dark themes, with the Tajawal font for Arabic and
+  Latin.
+
+### Planned
+
+Point of Sale, products, categories, units, barcodes, inventory ledger,
+purchases, suppliers, customers, debts, expenses, cash register, 17 reports with
+CSV export, ESC/POS printing with Arabic raster output, camera and USB HID
+barcode scanning, encrypted backup and restore, and PIN authentication.
+
+## Technology
+
+| Concern | Choice |
+|---|---|
+| Framework | Flutter 3.47 / Dart 3.13 |
+| Architecture | Clean Architecture, feature-first |
+| State | Riverpod |
+| Navigation | GoRouter |
+| Database | SQLite via Drift |
+| Charts | fl_chart |
+| Localisation | Flutter `gen-l10n` (ARB) |
+| Crypto | `cryptography` (AES-256-GCM, Argon2id) |
+| Printing | `esc_pos_utils_plus`, `pdf`, `printing` |
+| Desktop window | `window_manager` |
+
+## Quick start
+
+```sh
+export PATH="/opt/flutter-sdk/flutter/bin:$PATH"
+export ANDROID_HOME=/opt/android-sdk
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+
+flutter pub get
+dart run build_runner build
+flutter gen-l10n
+flutter run
+```
+
+Full instructions, including Windows and release builds, are in
+[`docs/installation.md`](docs/installation.md).
+
+## Build commands
+
+```sh
+flutter build apk --debug                # Android debug
+flutter build apk --release              # Android release (configure signing first)
+flutter build appbundle --release        # Play Store bundle
+flutter build windows --release          # Windows (on a Windows host)
+flutter build linux --debug              # Linux, development and QA only
+```
+
+## Test commands
+
+```sh
+flutter analyze                          # static analysis
+flutter test                             # all 97 tests
+flutter test test/unit                   # arithmetic core
+flutter test test/integration            # database, constraints, transactions
+flutter test test/widget                 # router, shell, localisation, dashboard
+```
+
+## Documentation
+
+| Document | Contents |
+|---|---|
+| [`docs/environment_report.md`](docs/environment_report.md) | What was inspected, what builds, what does not, and the failures that were fixed |
+| [`docs/development_progress.md`](docs/development_progress.md) | Phase-by-phase status, what is tested, what is not, known issues, next steps |
+| [`docs/architecture.md`](docs/architecture.md) | Layers, dependency direction, state, navigation, adaptive layout |
+| [`docs/database.md`](docs/database.md) | Schema, tables, indexes, migrations, storage conventions |
+| [`docs/business_rules.md`](docs/business_rules.md) | Money, quantities, exchange rates, costing, profit, inventory, cash, debts |
+| [`docs/testing.md`](docs/testing.md) | Test architecture, coverage, and the gaps that exist |
+| [`docs/hardware_compatibility.md`](docs/hardware_compatibility.md) | Printer and scanner plan, and the fact that no hardware has been tested |
+| [`docs/installation.md`](docs/installation.md) | Install, build, run, troubleshoot |
+
+## Verified platform status
+
+| Target | Status |
+|---|---|
+| Android | **Debug APK builds.** Not run on a device (none available). |
+| Windows | **Configured, not built.** Requires a Windows host with Visual Studio. |
+| Linux | Builds and runs; development and visual QA only, not shipped. |
+| Tests | 97 passing on the Dart VM. |
+| Static analysis | Clean. |
+
+Screenshots from the running application are in
+[`docs/screenshots/`](docs/screenshots/).
+
+## Scope
+
+The first release targets **one store, one active user, one local database**.
+
+Deliberately postponed: multiple branches, cloud sync, multi-device operation, a
+web dashboard, an online store, advanced multi-user permissions, general
+accounting and AI sales forecasting. The schema and the layering leave room for
+each of them; see the "Extension points" section of `docs/architecture.md`.
+
+## Licence
+
+Not yet chosen. The bundled Tajawal font is licensed under the SIL Open Font
+License; its licence text is in `assets/fonts/OFL.txt`.

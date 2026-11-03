@@ -1,0 +1,25 @@
+# Flutter and Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Generated localisations are produced by `flutter gen-l10n` from the ARB files
+# in lib/l10n and are rebuilt on every `pub get`, so they are not committed.
+lib/l10n/generated/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local runtime data and scratch files
+*.log
+/tmp/
