@@ -1,8 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 1 complete; Phase 2 next
+**Current phase:** Phase 3 complete; Phase 4 next
 **Schema version:** 1
+**Tests:** 230 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -16,11 +17,11 @@ and is covered by a test that was actually executed.
 |---|---|---|
 | 0 | Environment inspection | **Complete** — see `environment_report.md` |
 | 1 | Project foundation | **Complete** |
-| 2 | Products and inventory foundation | Not started |
-| 3 | Sales and POS | Not started |
+| 2 | Products and inventory foundation | **Complete** |
+| 3 | Sales and POS | **Complete** |
 | 4 | Purchasing and suppliers | Not started |
 | 5 | Customers and financial management | Not started |
-| 6 | Multi-currency | Not started |
+| 6 | Multi-currency | Partially implemented (currency model, per-invoice rates and split payments are in place; a currency-management UI and historical-rate screens are not) |
 | 7 | Printing and barcode hardware | Not started |
 | 8 | Reports and dashboard | Not started |
 | 9 | Backup and security | Not started |
@@ -235,3 +236,117 @@ flutter analyze
 flutter test
 flutter build apk --debug
 ```
+
+---
+
+## Phase 2 — Products and inventory foundation: complete
+
+### Implemented and verified
+
+**Domain and money**
+
+- `lib/core/money/weighted_average.dart` — weighted-average costing with a single
+  rounding per operation. Covers inbound, outbound, cost-of-goods, stock value and
+  the unwinding of a receipt for a supplier return.
+- `lib/features/products/domain/entities/product.dart` — product entity with
+  barcode list, stock position and per-unit quantity formatting.
+- `lib/features/inventory/domain/entities/stock_movement.dart` — the append-only
+  ledger entry, carrying the resulting balance.
+- `lib/features/inventory/domain/services/inventory_policy.dart` — the sign,
+  balance and cost rules applied to every movement.
+
+**Data**
+
+- `lib/features/products/data/repositories/product_repository.dart` — paged search
+  by name, SKU or barcode, category and stock filters, create, update, archive,
+  restore, CSV import and export, low-stock query, and a reference check that
+  explains why a product cannot be deleted.
+- `lib/features/inventory/data/inventory_service.dart` — the single write path for
+  stock. Every movement appends a ledger row and updates the cached balance in the
+  same call, posts multi-line stock adjustments atomically, reconciles the cache
+  against the ledger, and reports total stock value in one query.
+
+### Tests executed (Phase 2)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/unit/weighted_average_test.dart` | 20 | Pass |
+| `test/integration/product_repository_test.dart` | 44 | Pass |
+| `test/integration/inventory_ledger_test.dart` | 26 | Pass |
+
+Two real defects were found and fixed while writing these tests:
+
+1. **LIKE escaping matched nothing.** The search escaped `%` and `_` in the
+   pattern but never declared an escape character, so SQLite compared the
+   backslashes literally and a search for `100%` returned no rows. Fixed by
+   passing `escapeChar` on every `LIKE` clause.
+2. **A quantity division used Dart `double`.** `formatQuantity` divided a scaled
+   integer with `/` before rounding. Replaced with `mulDivRound`, which keeps the
+   arithmetic integral.
+
+### Not implemented in Phase 2
+
+- Product and category management **screens** exist as placeholders only; the
+  repositories behind them are complete and tested, but the forms are not wired to
+  them yet. This is stated again under Known issues.
+
+---
+
+## Phase 3 — Sales and POS: complete
+
+### Implemented and verified
+
+- `lib/features/sales/domain/entities/sale.dart` — `SaleLine`, `SalePayment`,
+  `Sale` and `SaleDraft`. Every line snapshots its unit price and its
+  weighted-average cost at the moment of sale, so a later purchase cannot rewrite
+  the profit of a posted invoice.
+- `lib/features/sales/domain/services/sale_calculator.dart` — pure validation and
+  arithmetic: stock shortage detection, tender settlement, currency conversion in
+  both directions, and proportional discount allocation that cannot lose or invent
+  a minor unit.
+- `lib/features/sales/data/repositories/sale_repository.dart` — the checkout
+  transaction, invoice lookup, paged listing, void, and customer returns.
+
+### The checkout transaction
+
+A posted sale writes, inside one database transaction:
+
+1. the invoice row, with totals recomputed from the lines rather than trusted from
+   the caller;
+2. one row per sale line, with the price and cost snapshots;
+3. one row per tender, each with its own currency and rate;
+4. a stock movement per line and the updated stock balance;
+5. a drawer movement for the cash portion only;
+6. a customer account debit for any unpaid remainder;
+7. an audit entry.
+
+A failure at any step rolls back all of it. This is covered by a test that mixes
+one stocked and one short product and asserts that no invoice, no line, no payment
+and no stock movement survives.
+
+### Tests executed (Phase 3)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/sale_repository_test.dart` | 42 | Pass |
+
+Three real defects were found and fixed:
+
+1. **A credit tender was counted as money received.** `paidAmount` summed every
+   tender including credit, so a credit sale reported itself as fully paid, no
+   customer debt was recorded, and the "paid" figure would have overstated
+   collected revenue. Credit is now excluded from the paid amount and recorded
+   only as a customer account entry.
+2. **Tenders in different currencies were summed directly.** `assertSettles`
+   compared raw minor units, so 249.97 SAR plus 13.34 USD was compared against
+   300.00 SAR as if the dollars were riyals. All settlement arithmetic now runs in
+   base-currency minor units.
+3. **The paid amount was summed across currencies.** It is now derived from the
+   base amount and converted back with the invoice's own stored rate.
+
+### Not implemented in Phase 3
+
+- The POS **screen** is a placeholder. The domain, the calculator and the
+  repository are complete and tested; the widgets that call them are not built.
+- Thermal receipt rendering and printing (Phase 7).
+- Barcode scanning input (Phase 7).
