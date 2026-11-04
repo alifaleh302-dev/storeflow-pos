@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 6 complete; Phase 7 next
+**Current phase:** Phase 8 complete; Phase 9 next
 **Schema version:** 1
-**Tests:** 317 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 379 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -22,8 +22,8 @@ and is covered by a test that was actually executed.
 | 4 | Purchasing and suppliers | **Complete** |
 | 5 | Customers and financial management | **Complete** |
 | 6 | Multi-currency | **Complete** |
-| 7 | Printing and barcode hardware | Not started |
-| 8 | Reports and dashboard | Not started |
+| 7 | Printing and barcode hardware | **Complete** (adapters; no physical hardware verified) |
+| 8 | Reports and dashboard | **Complete** |
 | 9 | Backup and security | Not started |
 | 10 | Final quality assurance | Not started |
 
@@ -505,3 +505,114 @@ denominator is 100. The code was already correct; the test was not.
 - Cross-currency settlement (paying a dollar invoice with a riyal tender and
   letting the remainder become a different currency of debt) is not modelled. Each
   tender converts to base, and the account balance is held in base.
+
+---
+
+## Phase 7 — Printing and barcode hardware: complete
+
+### Implemented and verified
+
+- `lib/infrastructure/printing/printer_service.dart` — the `PrinterService`
+  abstraction, with `BasePrinterService` holding the connection bookkeeping.
+- `lib/infrastructure/printing/esc_pos_builder.dart` — ESC/POS byte streams for
+  text and for raster images, Arabic detection, line wrapping and column layout.
+- `lib/infrastructure/printing/receipt_raster_renderer.dart` — renders a receipt
+  to a 1-bit bitmap so printers without an Arabic code page can print it.
+- `lib/infrastructure/scanning/barcode_scanner_service.dart` — the scanner
+  abstraction with duplicate suppression.
+- `lib/infrastructure/scanning/keyboard_wedge_scanner.dart` — a working USB HID
+  scanner for Windows, reconstructing scans from keystroke timing.
+- `lib/infrastructure/printing/mock_printer_service.dart` and
+  `lib/infrastructure/hardware_factory.dart` — a virtual printer for tests and a
+  factory that reports unsupported paths with a reason.
+- `lib/features/printing/data/services/receipt_builder.dart` — builds a receipt
+  from the stored sale.
+- `docs/hardware_compatibility.md` — what is verified and what is not.
+
+### Arabic on a thermal printer
+
+Most ESC/POS printers have no Arabic code page, so Arabic sent as bytes prints as
+noise. The whole receipt is rendered to a bitmap and sent as an image instead. The
+entire receipt is rasterised, not only the Arabic lines, because mixing the two
+would give one page two different character widths and break the column alignment.
+
+### Tests executed (Phase 7)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/printing_hardware_test.dart` | 34 | Pass |
+
+Three issues were found, all in the tests rather than the code:
+
+1. The raster header offsets were misread. The eight-byte header is
+   `1D 76 30 00`, then width, then height, so the pixel data starts at offset 10.
+   The builder was correct; the assertions were not.
+2. The keyboard-wedge tests needed the Flutter services binding, because they read
+   `HardwareKeyboard`.
+3. A teardown cancelled a subscription that a failed start had never created,
+   masking the real error.
+
+### Not implemented in Phase 7
+
+- **No physical hardware was tested.** No printer, scanner or Android device was
+  available. Bluetooth, USB and network printing are reported as unsupported or
+  unverified, and no model is claimed compatible.
+- The Android camera scanner is not wired into a screen.
+- The network socket transport is not connected to a screen; it currently returns
+  the mock adapter.
+
+---
+
+## Phase 8 — Reports and dashboard: complete
+
+### Implemented and verified
+
+- `lib/features/reports/domain/entities/report_table.dart` — a report as data:
+  columns, rows, a total row and RFC 4180 CSV export.
+- `lib/features/reports/data/repositories/reporting_service.dart` — sales by
+  period, product, category and customer; purchases by supplier; expenses by
+  category; the profit and loss statement; inventory valuation; low stock;
+  customer and supplier debts; payments by method; returns; and the cash register
+  report.
+
+The dashboard already existed and was extended by tests rather than rewritten.
+
+### Revenue is not collected cash
+
+This is the distinction the reports are built around, and it is asserted directly.
+A credit sale appears in the profit and loss statement as revenue and contributes
+nothing to the payments-by-method report, because no money was received. A later
+debt collection does appear there. A test checks that a credit sale leaves the
+cash session totals at zero.
+
+Gross profit is revenue less cost of goods. Operating expenses reduce net
+operating profit but never gross profit. A test pins each of those down
+separately, and the profit and loss statement is returned in reading order so a
+subtotal cannot be mistaken for a final figure.
+
+### Tests executed (Phase 8)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/reporting_test.dart` | 28 | Pass |
+
+Four issues were found, three of them in the tests:
+
+1. **The returns queries referenced columns that do not exist.** `sales_returns`
+   has no `base_total` or `base_cost_total` columns, so the profit and loss
+   statement and the returns report would have failed at runtime. Both now convert
+   the return's own total using the rate stored on the return.
+2. A sales-by-product ordering expectation was wrong: the report sorts by revenue,
+   and the larger line was not the one assumed.
+3. A low-stock test set a minimum that the second product also fell below.
+4. A CSV-quoting test used a product with no stock, so it never appeared in the
+   report it was checking.
+
+### Not implemented in Phase 8
+
+- The reports and dashboard **screens** exist but the report screens do not yet
+  render every report this service can produce, and CSV export is not yet wired to
+  a file picker.
+- Sales by category resolves through each product's current category, so moving a
+  product between categories changes past category reports. A category snapshot on
+  the sale line would fix this; it is not implemented.
