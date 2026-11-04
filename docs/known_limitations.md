@@ -11,18 +11,22 @@ verified and what could not.
 
 | Target | Status | Evidence |
 |---|---|---|
+| Android | **Release APK built and verified** | `dist/StoreFlowPOS-1.0.0-release.apk`, 56.3 MB, signed with the release key |
 | Linux desktop | **Release build succeeded** | `build/linux/x64/release/bundle/storeflow_pos`, 142 MB bundle |
 | Windows desktop | Configured, **not built** | `windows/` target present; no Windows host or cross-compiler available |
-| Android | Configured, **not built** | `android/` target present; no Android SDK installed in this environment |
 
 The Linux release build compiles the whole shared codebase — all domain logic,
 the database layer, the hardware adapters and the interface — so a compile error
 anywhere would have failed it. It is real evidence that the code is sound.
 
-It is **not** evidence that the Android or Windows applications build. Those need
-their own toolchains. The Windows and Android targets are configured and their
-project files exist, but neither has been compiled here, and no claim is made that
-they would compile without adjustment.
+The Android release APK was built here too, with JDK 21 and Android SDK 36, and its
+signature verified with `apksigner`. What that proves is that the code compiles for
+Android and packages correctly.
+
+It is **not** evidence that the Windows application builds, which needs its own
+toolchain and a Windows host. Nor has the APK been run on a real device or emulator:
+it installs and starts as far as the packaging and signature are concerned, but no
+one has watched it launch.
 
 ### Exact commands to finish the platform builds
 
@@ -35,14 +39,8 @@ flutter build windows --release
 # Artifact: build/windows/x64/runner/Release/storeflow_pos.exe
 ```
 
-On a machine with the Android SDK and a JDK:
-
-```bash
-flutter config --android-sdk <path-to-android-sdk>
-flutter doctor --android-licenses
-flutter build apk --release
-# Artifact: build/app/outputs/flutter-apk/app-release.apk
-```
+The Android build needs no further work; see `installation.md` for the command and
+the signing setup.
 
 ## Hardware
 
@@ -85,6 +83,14 @@ See `hardware_compatibility.md` for the device-by-device position.
   text rendering has not been checked on a real device with real system fonts.
 - The dashboard and report screens read from the reporting service. Their layout has
   not been reviewed on a small phone screen.
+- **The Android APK has not been run.** It is built, signed and installable, but it
+  has never been launched on a device or emulator, so nothing is known about how it
+  behaves at runtime on Android.
+- **Android camera barcode scanning is not implemented.** There is no ML Kit
+  dependency, no camera permission in the manifest, and no platform channel. On
+  Android the application falls back to manual barcode entry and the keyboard-wedge
+  path. The abstract scanner interface is in place for a camera adapter to be added,
+  but the adapter does not exist.
 
 ## Architecture deferrals
 

@@ -195,3 +195,56 @@ dart run build_runner clean && dart run build_runner build
 
 That option was removed from Flutter and has been deleted from `l10n.yaml`. If
 the warning reappears, check that the file does not contain it.
+
+## Android release build — verified
+
+The Android release APK has been built and verified in this environment.
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export ANDROID_SDK_ROOT=/opt/android-sdk
+export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+flutter pub get
+flutter build apk --release
+# Artifact: build/app/outputs/flutter-apk/app-release.apk
+```
+
+| Property | Value |
+|---|---|
+| Application ID | `com.storeflow.storeflow_pos` |
+| Version | `1.0.0` (versionCode 1) |
+| minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
+| Architectures | arm64-v8a, armeabi-v7a, x86_64 |
+| Size | 56.3 MB |
+| Signature | APK Signature Scheme v2, release keystore |
+| Debuggable | no |
+
+The toolchain used: JDK 21, Android SDK 36.1.0, build-tools 36.1.0, NDK 28.2.13676358,
+Gradle 9.3.1, AGP 9.1.0.
+
+### Signing
+
+The release build reads `android/key.properties`, which is **not** committed:
+
+```properties
+storePassword=<password>
+keyPassword=<password>
+keyAlias=storeflow
+storeFile=/absolute/path/to/storeflow-release.jks
+```
+
+Create the keystore once and keep it safe — an application update must be signed
+with the same key or Android will refuse to install it:
+
+```bash
+keytool -genkeypair -v \
+  -keystore storeflow-release.jks -storetype PKCS12 \
+  -keyalg RSA -keysize 4096 -validity 10950 \
+  -alias storeflow -storepass <password> -keypass <password> \
+  -dname "CN=StoreFlow POS, O=StoreFlow, C=EG"
+```
+
+When `android/key.properties` is absent the release build falls back to the debug
+keys so `flutter run --release` still works on a fresh checkout. A build made that
+way is **not** suitable for distribution.

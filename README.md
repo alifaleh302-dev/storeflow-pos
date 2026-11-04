@@ -89,11 +89,18 @@ flutter build linux --release            # Linux (verified: see docs/known_limit
 
 ## Verification status
 
-The Linux release build succeeds, and the whole test suite passes. The Android and
-Windows applications are configured but **have not been built**, because neither
-toolchain is available in the development environment. No hardware has been tested.
+The whole test suite passes (427 tests), `flutter analyze` is clean, and release
+builds have been produced for **Android** and **Linux**. The **Windows** application
+is configured but has not been built, because no Windows host or cross-compiler is
+available. No hardware has been tested.
+
+The Android release APK is published on the
+[releases page](https://github.com/hamoud302js-wq/storeflow-pos/releases) and is
+also produced at `build/app/outputs/flutter-apk/app-release.apk` by
+`flutter build apk --release`.
+
 Read [`docs/known_limitations.md`](docs/known_limitations.md) before relying on any
-unverified feature.
+unverified feature. The APK has never been launched on a device.
 
 ## Test commands
 

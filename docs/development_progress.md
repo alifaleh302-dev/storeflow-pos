@@ -724,3 +724,57 @@ it with real money. The three largest gaps:
    has scanned a barcode.
 3. **The backup, restore and PIN screens are not wired to their services.** The
    services are complete and tested; the interface is not.
+
+---
+
+## Android release build — complete
+
+The Android release APK has been built and verified. This was the largest remaining
+gap in Phase 10, and it is now closed.
+
+### What was done
+
+1. **Inspected `android/`.** The application ID was already
+   `com.storeflow.storeflow_pos` and the Gradle configuration was coherent. Two
+   things were wrong for a real release: the release build type signed with the
+   *debug* keys, and the application label was the raw package name.
+2. **Installed the toolchain.** JDK 21 (Debian 13 ships 21, not 17), Android SDK
+   command-line tools, platform 36, build-tools 36.1.0 and NDK 28.2.13676358.
+   Flutter 3.47.9 requires compileSdk 36, minSdk 24 and that exact NDK.
+3. **Created a real release keystore** (RSA 4096, PKCS12, 30-year validity) and
+   wired `android/key.properties` into `build.gradle.kts`. The keystore lives
+   outside the repository and `key.properties` is git-ignored.
+4. **Enabled release shrinking** with a ProGuard rule set that protects
+   `flutter_secure_storage` (reflection into the Android keystore) and Drift's
+   native SQLite loader.
+5. **Built and verified the APK.**
+
+### Result
+
+| Property | Value |
+|---|---|
+| Artifact | `dist/StoreFlowPOS-1.0.0-release.apk` |
+| Size | 56.3 MB |
+| SHA-256 | `1020f958bd3899eb1dcab70e1c02d5c82dfd2a5b02647709571ceb92ece4960f` |
+| Application ID | `com.storeflow.storeflow_pos` |
+| Version | 1.0.0 (versionCode 1) |
+| min / target / compile SDK | 24 / 36 / 36 |
+| Architectures | arm64-v8a, armeabi-v7a, x86_64 |
+| Signature | APK Signature Scheme v2, `CN=StoreFlow POS` |
+| Debuggable | no |
+
+`apksigner verify` confirms the signature and `aapt2 dump badging` confirms the
+package identity and the absence of the debuggable flag.
+
+### Tests re-run before the build
+
+The container was recreated partway through this work, which wiped the Flutter SDK
+and the Dart package cache. After restoring both, the full suite was re-run:
+**427 tests pass** and `flutter analyze` reports no issues.
+
+### What this does not prove
+
+The APK has never been run. It is built, signed and installable, but no device or
+emulator has launched it, so its runtime behaviour on Android is unknown. Android
+camera barcode scanning is also not implemented — there is no ML Kit dependency and
+no camera permission. Both facts are recorded in `known_limitations.md`.
