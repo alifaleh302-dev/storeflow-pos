@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 8 complete; Phase 9 next
+**Current phase:** Phase 9 complete; Phase 10 next
 **Schema version:** 1
-**Tests:** 379 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 418 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -24,7 +24,7 @@ and is covered by a test that was actually executed.
 | 6 | Multi-currency | **Complete** |
 | 7 | Printing and barcode hardware | **Complete** (adapters; no physical hardware verified) |
 | 8 | Reports and dashboard | **Complete** |
-| 9 | Backup and security | Not started |
+| 9 | Backup and security | **Complete** |
 | 10 | Final quality assurance | Not started |
 
 ---
@@ -616,3 +616,57 @@ Four issues were found, three of them in the tests:
 - Sales by category resolves through each product's current category, so moving a
   product between categories changes past category reports. A category snapshot on
   the sale line would fix this; it is not implemented.
+
+---
+
+## Phase 9 — Backup and security: complete
+
+### Implemented and verified
+
+- `lib/infrastructure/encryption/backup_format.dart` — the `.sfp` container:
+  magic, version, Argon2id salt, AES-GCM nonce, and the length-prefixed manifest
+  and database payload.
+- `lib/infrastructure/encryption/backup_cipher.dart` — AES-256-GCM with Argon2id
+  key derivation and a SHA-256 digest helper.
+- `lib/features/backup/data/services/backup_service.dart` — snapshot, encrypt,
+  inspect, preview, restore, with staged validation and a kept previous database.
+- `lib/features/authentication/data/services/auth_service.dart` — owner PIN with
+  Argon2id hashing, constant-time comparison, and a growing delay after failures.
+- `docs/backup_and_security.md` — the format, the procedure and the limitations.
+
+### Two mistakes the tests caught
+
+Both would have produced a backup that looked fine and restored nothing:
+
+1. **The database was snapshotted through a read-only connection.** The database
+   runs in write-ahead logging mode, so recent commits live in the `-wal` file. A
+   read-only connection cannot read it, so the snapshot was empty — 307 bytes of
+   manifest and no database. The connection is now opened read-write.
+2. **The SQLite backup stream was never drained.** `backup()` returns a lazy
+   stream that does no work until it is listened to, so ignoring the result copied
+   nothing. It is now awaited to completion.
+
+A third, smaller bug was found by the tests: the snapshot's temporary directory was
+left behind after each backup, and the failure delay formula was one step too slow
+at the first threshold.
+
+### Tests executed (Phase 9)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/backup_security_test.dart` | 39 | Pass |
+
+The suite covers the format's length checks and version gate, a corrupted
+ciphertext, a wrong password, a truncated payload, a full backup and restore cycle,
+a restore after later changes, data surviving a restore and reopening, the PIN
+never being stored, constant-time comparison, and the audit log containing no
+secret.
+
+### Not implemented in Phase 9
+
+- **The live database is not encrypted at rest.** Only backups are. Reading the
+  file gives the data; this needs SQLCipher and is a deliberate deferral.
+- No key recovery: a forgotten backup password means the backup cannot be read.
+- No partial restore or merge.
+- The backup and authentication **screens** are not wired to these services yet;
+  the services are complete and tested, the UI is not.
