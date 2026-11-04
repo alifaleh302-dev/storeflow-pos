@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 3 complete; Phase 4 next
+**Current phase:** Phase 4 complete; Phase 5 next
 **Schema version:** 1
-**Tests:** 230 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 262 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -19,7 +19,7 @@ and is covered by a test that was actually executed.
 | 1 | Project foundation | **Complete** |
 | 2 | Products and inventory foundation | **Complete** |
 | 3 | Sales and POS | **Complete** |
-| 4 | Purchasing and suppliers | Not started |
+| 4 | Purchasing and suppliers | **Complete** |
 | 5 | Customers and financial management | Not started |
 | 6 | Multi-currency | Partially implemented (currency model, per-invoice rates and split payments are in place; a currency-management UI and historical-rate screens are not) |
 | 7 | Printing and barcode hardware | Not started |
@@ -350,3 +350,57 @@ Three real defects were found and fixed:
   repository are complete and tested; the widgets that call them are not built.
 - Thermal receipt rendering and printing (Phase 7).
 - Barcode scanning input (Phase 7).
+
+---
+
+## Phase 4 — Purchasing and suppliers: complete
+
+### Implemented and verified
+
+- `lib/features/purchases/domain/entities/purchase.dart` — `PurchaseLine`,
+  `PurchasePayment`, `Purchase` and `PurchaseDraft`, with the invoice arithmetic
+  (lines, invoice discount, additional cost) held in the draft.
+- `lib/features/purchases/data/repositories/purchase_repository.dart` — posting,
+  voiding, supplier returns, lookup and paged listing.
+- `lib/features/suppliers/data/repositories/supplier_repository.dart` — supplier
+  CRUD, paged search, statement and balance.
+- `lib/features/suppliers/domain/entities/supplier.dart` — the supplier entity.
+
+### How a received cost is computed
+
+The cost that reaches the weighted average is not the price typed on the line.
+An invoice discount reduces what was actually paid and freight or customs raises
+it, so both are spread across the lines in proportion to their value, and each
+line's effective unit cost is rounded once. A 10-unit line at 100.00 on an
+invoice carrying 50.00 of discount values the stock at 95.00 a unit, not 100.00,
+because 95.00 is what the store paid.
+
+Voiding reverses this by unwinding the receipt rather than by subtracting units
+from an average that has since moved, so voiding a later dearer receipt leaves the
+original average intact. This is asserted by a test that posts 100.00 then
+120.00, voids the second, and checks the average returns to 100.00.
+
+### Tests executed (Phase 4)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/purchase_repository_test.dart` | 32 | Pass |
+
+Two issues were found:
+
+1. **A raw SQLite foreign-key error escaped the repository.** A purchase line
+   pointing at a product that no longer existed failed inside the transaction with
+   `SqliteException(787)` rather than a domain error. Products are now validated
+   before the transaction opens, so the caller gets a `NotFoundFailure` naming the
+   missing ids and nothing is written.
+2. **A test expectation about wildcard escaping was wrong.** The test asserted
+   that searching for `%` returns no rows. The escaping is correct, so it returns
+   the one supplier whose name genuinely contains a percent sign. The expectation
+   was corrected, not the code.
+
+### Not implemented in Phase 4
+
+- Purchase and supplier **screens** are placeholders; the repositories behind them
+  are complete and tested.
+- Purchase order workflow (draft orders before receipt) is not implemented. Only
+  immediate receipt is supported.
