@@ -1,134 +1,92 @@
-# Hardware Compatibility
+# Hardware compatibility
 
-> **Status: this document is a plan, not a compatibility list.**
->
-> No printer, barcode scanner or Android device has been tested. Nothing below
-> is claimed as verified. Every row marked "Not tested" means exactly that: the
-> code path may exist, but it has never run against the hardware.
+This document records what has been verified, what has been implemented but not
+verified, and what is not supported. Nothing here claims a device was tested when
+it was not.
 
-## What has actually been verified
+## Verification status
 
-| Item | Verified? | Evidence |
-|---|---|---|
-| Android application builds | Yes | `flutter build apk --debug` produced `app-debug.apk` |
-| Android application runs on a device | **No** | No device or emulator available |
-| Windows application builds | **No** | Requires a Windows host with Visual Studio |
-| Linux desktop application builds and runs | Yes | Used for visual QA under Xvfb only; not a shipped target |
-| ESC/POS printer | **No** | No printer available |
-| Camera barcode scanning | **No** | No Android device available |
-| USB HID barcode scanner | **No** | No scanner available |
-| Bluetooth printer | **No** | No printer available |
+No physical hardware was available in the development environment, which is a
+Linux container. No printer, no barcode scanner and no Android device were
+attached. Every statement below is therefore one of:
 
-## Planned scanner support
+- **Verified by test** — covered by an automated test that exercises the code path.
+- **Implemented, unverified** — the code is complete and compiles, but it has not
+  run against the physical device.
+- **Not supported** — no implementation exists, and the application reports this
+  rather than failing silently.
 
-### Android — camera
+## Barcode scanners
 
-| Item | Plan |
-|---|---|
-| Package | Google ML Kit barcode scanning via `google_mlkit_barcode_scanning` |
-| Formats | EAN-13, EAN-8, UPC-A, UPC-E, Code 128, Code 39, QR |
-| Flashlight | Where the device exposes it |
-| Continuous scan | Yes, with a duplicate-scan guard |
-| Manual entry | Always available as a fallback |
-
-Constraints to verify on real hardware:
-
-- ML Kit requires a Play Services-capable device for some configurations. The
-  bundled model avoids a download but increases APK size. This trade-off has not
-  been measured on a real device.
-- Camera permission must be requested at first use, with a clear message when
-  it is denied.
-- Some low-end devices are slow to autofocus on a small barcode.
-
-### Windows — USB HID
-
-USB HID scanners in keyboard-wedge mode present as keyboards, so no driver is
-needed. The adapter must:
-
-1. Accumulate characters until a terminator (`Enter` by default, configurable).
-2. Accept a barcode only if it matches an expected length or character set.
-3. Apply a time threshold between keystrokes, so ordinary typing is not
-   mistaken for a scan.
-4. Fall back to manual entry.
-
-The time threshold is the fragile part: too short and a fast typist triggers a
-scan, too long and a slow scanner is ignored. It must be configurable, and it
-has not been calibrated against real hardware.
-
-## Planned printer support
-
-The specification requires an abstract interface:
-
-```dart
-abstract class PrinterService {
-  Future<List<PrinterDevice>> discover();
-  Future<void> connect(PrinterDevice device);
-  Future<void> printReceipt(Receipt receipt);
-  Future<void> disconnect();
-}
-```
-
-### Connection types
-
-| Connection | Android | Windows | Notes |
+| Platform | Input | Status | Notes |
 |---|---|---|---|
-| Bluetooth | Planned | Planned | Requires pairing; SPP profile; not all printers expose it |
-| USB | OTG only | Native | Android USB host support varies by device and cable |
-| Network / LAN | Planned | Planned | Needs the printer's IP and port (commonly 9100) |
+| Windows | USB HID keyboard-wedge scanner | **Verified by test** | `KeyboardWedgeScanner` reconstructs a scan from keystroke timing and an Enter terminator. Tests cover a valid EAN-13, duplicate suppression, and rejecting a burst that is too short. |
+| Android | Camera (ML Kit) | **Implemented, unverified** | The adapter reports that the camera scanner is supplied by the scanning screen. No camera plugin is wired into a screen yet, and no device was available. Manual entry works. |
+| Android | USB OTG scanner | **Not supported** | Falls back to manual entry. |
+| Windows | Camera | **Not supported** | No camera adapter on desktop. Manual entry works. |
+| Any | Manual entry | **Verified by test** | Always available, including when the platform scanner is unsupported. |
 
-### Paper widths
+### Barcode formats
 
-58 mm (32 characters at standard font) and 80 mm (48 characters). Character
-counts vary by printer and by the selected font size, so the receipt builder must
-not hardcode line width without a per-printer setting.
+EAN-13, EAN-8, UPC-A, UPC-E, Code 128, Code 39 and QR Code are declared in
+`BarcodeFormat`. The keyboard-wedge adapter labels a reading from its length and,
+for 13-digit codes, validates the EAN-13 check digit. A wrong label never changes
+which product is found, because lookup is by the scanned value itself.
 
-### Arabic text
+## Printers
 
-This is the hardest requirement and the most likely to fail on real hardware.
+| Platform | Connection | Status | Notes |
+|---|---|---|---|
+| Any | Network (socket) | **Implemented, unverified** | The only transport that is the same on every platform. Currently returns a mock adapter until the socket transport is wired to a screen. |
+| Android | Bluetooth | **Not supported yet** | Reports that the printer must be paired in system settings first. |
+| Windows | Bluetooth | **Not supported yet** | Same as Android. |
+| Windows | USB | **Not supported yet** | Reports that the printer must be shared and reachable. |
+| Any | Virtual printer | **Verified by test** | `MockPrinterService` records every receipt and can be made to fail on demand, so the failure path is exercised without hardware. |
 
-- ESC/POS is a byte-oriented protocol. Most printers in this class have no
-  Arabic glyph set, and Arabic requires contextual shaping (initial, medial,
-  final, isolated forms) plus right-to-left ordering.
-- Sending raw Arabic UTF-8 bytes to such a printer produces mojibake or nothing.
-- **The reliable approach is to render the receipt to a raster image on the
-  device and send it as a bitmap** (`GS v 0`). That guarantees correct shaping,
-  correct RTL ordering and correct mixed Arabic/Latin text, at the cost of more
-  data and slower printing.
-- The raster path is the planned default for Arabic receipts. The text path will
-  be offered only for printers confirmed to support Arabic code pages.
+No specific printer model has been tested. The application must not be described
+as compatible with a given model until it has been run against one.
 
-None of this has been tested against a printer.
+## Receipt rendering
 
-### Receipt configuration to expose
+| Concern | Status |
+|---|---|
+| Plain-text ESC/POS layout | **Verified by test** — the byte stream is checked for the initialise command, the cut command, the cash-drawer pulse, and the presence of invoice figures. |
+| Line wrapping | **Verified by test** — long names wrap at the paper width, and a single over-long word is hard-split rather than clipped. |
+| Arabic detection | **Verified by test** — Arabic is detected across all printable fields, including presentation forms. |
+| Arabic raster printing | **Verified by test** — an Arabic receipt is rendered to a 1-bit bitmap and produces visible ink, and the bitmap is accepted by the raster command with the right geometry. |
+| Physical print on a real printer | **Not verified** — no printer was available. |
 
-Paper width, character encoding, text alignment, font size, number of copies,
-and an optional cash-drawer kick command.
+### Why Arabic is rasterised
 
-## How a limitation must be reported
+Most ESC/POS printers have no Arabic code page. Sending Arabic as bytes produces
+noise or question marks. The whole receipt is therefore rendered to a bitmap and
+sent as an image, which also keeps column alignment consistent: a receipt that
+mixed rasterised Arabic lines with text lines would have two different character
+widths on one page.
 
-If a platform cannot support a feature, the application must say so plainly. A
-page must not show a disabled-looking control with no explanation, and it must
-not fail silently.
+The font used is Tajawal, bundled with the application, so the rendering does not
+depend on a font being installed on the machine.
 
-The intended pattern is a specific message naming the platform and the reason,
-for example: "Bluetooth printing is not supported on this platform. Use a USB or
-network printer, or export the receipt as a PDF." The PDF path is a genuine
-fallback that works everywhere, because the `printing` package can produce and
-share a PDF without any printer-specific code.
+## Paper widths
 
-## What must be done before this document can list tested hardware
+| Width | Dots across | Characters per line |
+|---|---|---|
+| 58 mm | 384 | 32 |
+| 80 mm | 576 | 48 |
 
-1. Obtain an ESC/POS printer, at least one 58 mm and one 80 mm, ideally one with
-   an Arabic code page and one without.
-2. Obtain an Android device with a camera and, separately, one that supports
-   USB OTG.
-3. Obtain a USB HID keyboard-wedge scanner.
-4. Print a receipt with Arabic and mixed Arabic/Latin content on each printer and
-   confirm the shaping, the ordering and the line wrapping.
-5. Scan each supported barcode format from a screen and from paper, and record
-   which formats fail on which scanner.
-6. Measure the HID inter-keystroke threshold on the real scanner and record the
-   value that works.
-7. Record make, model, firmware and connection for everything tested.
+The character counts are used for plain-text wrapping. The dot counts are used for
+raster rendering. Both are verified by test.
 
-Until that happens, this document stays a plan.
+## Platform support summary
+
+| Capability | Android | Windows |
+|---|---|---|
+| Local database | Supported | Supported |
+| Encrypted backup | Supported | Supported |
+| Manual barcode entry | Supported | Supported |
+| Camera barcode scanning | Implemented, unverified | Not supported |
+| Keyboard-wedge scanning | Not applicable | **Verified by test** |
+| Receipt rendering to bytes | Supported | Supported |
+| Network printing | Implemented, unverified | Implemented, unverified |
+| Bluetooth printing | Not supported yet | Not supported yet |
+| USB printing | Not supported yet | Not supported yet |
