@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 5 complete; Phase 6 next
+**Current phase:** Phase 6 complete; Phase 7 next
 **Schema version:** 1
-**Tests:** 294 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 317 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -21,7 +21,7 @@ and is covered by a test that was actually executed.
 | 3 | Sales and POS | **Complete** |
 | 4 | Purchasing and suppliers | **Complete** |
 | 5 | Customers and financial management | **Complete** |
-| 6 | Multi-currency | Partially implemented (currency model, per-invoice rates and split payments are in place; a currency-management UI and historical-rate screens are not) |
+| 6 | Multi-currency | **Complete** |
 | 7 | Printing and barcode hardware | Not started |
 | 8 | Reports and dashboard | Not started |
 | 9 | Backup and security | Not started |
@@ -460,3 +460,48 @@ The assertion is now scoped to the customer by name.
 - Customer and supplier payments are not yet linked to a specific invoice. A
   payment settles the account as a whole, which is correct for a running account
   but does not support per-invoice settlement.
+
+---
+
+## Phase 6 — Multi-currency: complete
+
+### Implemented and verified
+
+- `lib/features/currencies/data/repositories/currency_repository.dart` — the base
+  currency, adding and editing currencies, historical rates with an effective
+  date, and resolving the rate in force at any past moment.
+- `lib/core/money/exchange_rate.dart` — the rational rate value object, already
+  used by every transaction, with the conversion direction documented.
+
+### Why rates are inserted and never overwritten
+
+Changing a rate writes a new row with its own effective date. The old row stays.
+A rate can therefore be resolved as of any past instant, and a posted invoice is
+unaffected by any later change. Two tests pin this down: one posts an invoice at
+3.75, changes the configured rate to 5.00, and checks the stored invoice still
+reads 3.75 and its base total is unchanged; another resolves the correct rate on
+either side of an effective date.
+
+The conversion is documented as
+`base_minor = round(tx_minor * numerator / denominator)`, with minor units on both
+sides. That is why a zero-decimal currency needs no special scaling: the rate
+already carries the difference in precision. A test covers a zero-decimal and a
+three-decimal currency to show this holds.
+
+### Tests executed (Phase 6)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/multi_currency_test.dart` | 23 | Pass |
+
+One test expectation was corrected: a zero-decimal currency test used a
+denominator of 10000, which would have been right only if the rate were expressed
+in major units. Since it is expressed in minor units on both sides, the
+denominator is 100. The code was already correct; the test was not.
+
+### Not implemented in Phase 6
+
+- The currency management **screen** is a placeholder.
+- Cross-currency settlement (paying a dollar invoice with a riyal tender and
+  letting the remainder become a different currency of debt) is not modelled. Each
+  tender converts to base, and the account balance is held in base.
