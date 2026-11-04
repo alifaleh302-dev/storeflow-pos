@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 4 complete; Phase 5 next
+**Current phase:** Phase 5 complete; Phase 6 next
 **Schema version:** 1
-**Tests:** 262 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 294 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -20,7 +20,7 @@ and is covered by a test that was actually executed.
 | 2 | Products and inventory foundation | **Complete** |
 | 3 | Sales and POS | **Complete** |
 | 4 | Purchasing and suppliers | **Complete** |
-| 5 | Customers and financial management | Not started |
+| 5 | Customers and financial management | **Complete** |
 | 6 | Multi-currency | Partially implemented (currency model, per-invoice rates and split payments are in place; a currency-management UI and historical-rate screens are not) |
 | 7 | Printing and barcode hardware | Not started |
 | 8 | Reports and dashboard | Not started |
@@ -404,3 +404,59 @@ Two issues were found:
   are complete and tested.
 - Purchase order workflow (draft orders before receipt) is not implemented. Only
   immediate receipt is supported.
+
+---
+
+## Phase 5 — Customers and financial management: complete
+
+### Implemented and verified
+
+- `lib/features/customers/data/repositories/customer_repository.dart` — customer
+  CRUD, paged search, a reusable walk-in customer, payments, supplier payments,
+  statements, and balances rebuilt from the account ledger.
+- `lib/features/expenses/data/repositories/expense_repository.dart` — expense
+  recording, paged listing, period totals and totals grouped by category.
+- `lib/features/cash_register/data/repositories/cash_register_service.dart` —
+  open, movements, summary and close, with the expected and counted cash and the
+  difference.
+
+### How debts and cash are kept apart
+
+A payment is never a sale. Recording a customer payment writes a payment document
+and credits the account ledger; it creates no invoice, no sale line and no
+inventory movement. A test asserts that the sale count stays at one after a
+partial payment is recorded.
+
+Only physical cash moves the drawer. A credit sale, a bank transfer, a card
+payment and a credit purchase all leave the session totals untouched. A cash sale,
+a debt collection and a manual deposit add to the drawer; a cash purchase, a cash
+expense, a supplier payment and a withdrawal take from it. Each of these is
+covered by a test that checks the resulting session totals rather than trusting
+the intent of the code.
+
+### Tests executed (Phase 5)
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/customer_finance_test.dart` | 32 | Pass |
+
+Two defects were found and fixed in the code I wrote for this phase:
+
+1. **Integer division truncated a converted cash amount.** A manual cash movement
+   converted to base currency with `~/`, which silently drops the remainder.
+   Replaced with `mulDivRound`, the same exact routine used everywhere else.
+2. **A redundant query chain in the movement path.** A `select` was chained to a
+   `.then` that discarded its result, issuing a pointless query on every call.
+   Removed.
+
+One test expectation was corrected: the assertion that a deactivated customer
+leaves a single active customer ignored the walk-in customer seeded at install.
+The assertion is now scoped to the customer by name.
+
+### Not implemented in Phase 5
+
+- Customer, expense and cash-register **screens** are placeholders; the layers
+  behind them are complete and tested.
+- Customer and supplier payments are not yet linked to a specific invoice. A
+  payment settles the account as a whole, which is correct for a running account
+  but does not support per-invoice settlement.
