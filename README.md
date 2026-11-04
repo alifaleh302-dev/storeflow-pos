@@ -84,14 +84,22 @@ flutter build apk --debug                # Android debug
 flutter build apk --release              # Android release (configure signing first)
 flutter build appbundle --release        # Play Store bundle
 flutter build windows --release          # Windows (on a Windows host)
-flutter build linux --debug              # Linux, development and QA only
+flutter build linux --release            # Linux (verified: see docs/known_limitations.md)
 ```
+
+## Verification status
+
+The Linux release build succeeds, and the whole test suite passes. The Android and
+Windows applications are configured but **have not been built**, because neither
+toolchain is available in the development environment. No hardware has been tested.
+Read [`docs/known_limitations.md`](docs/known_limitations.md) before relying on any
+unverified feature.
 
 ## Test commands
 
 ```sh
 flutter analyze                          # static analysis
-flutter test                             # all 97 tests
+flutter test                             # all 427 tests
 flutter test test/unit                   # arithmetic core
 flutter test test/integration            # database, constraints, transactions
 flutter test test/widget                 # router, shell, localisation, dashboard

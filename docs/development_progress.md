@@ -1,9 +1,9 @@
 # StoreFlow POS — Development Progress
 
 **Last updated:** 2026-11-03
-**Current phase:** Phase 9 complete; Phase 10 next
+**Current phase:** Phase 10 complete — all phases done
 **Schema version:** 1
-**Tests:** 418 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 427 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
@@ -25,7 +25,7 @@ and is covered by a test that was actually executed.
 | 7 | Printing and barcode hardware | **Complete** (adapters; no physical hardware verified) |
 | 8 | Reports and dashboard | **Complete** |
 | 9 | Backup and security | **Complete** |
-| 10 | Final quality assurance | Not started |
+| 10 | Final quality assurance | **Complete** |
 
 ---
 
@@ -670,3 +670,57 @@ secret.
 - No partial restore or merge.
 - The backup and authentication **screens** are not wired to these services yet;
   the services are complete and tested, the UI is not.
+
+---
+
+## Phase 10 — Final quality assurance: complete
+
+### Builds actually executed
+
+| Target | Command | Result |
+|---|---|---|
+| Linux desktop | `flutter build linux --release` | **Succeeded** — `build/linux/x64/release/bundle/storeflow_pos` |
+| Android | `flutter build apk --release` | **Not run** — no Android SDK in this environment |
+| Windows | `flutter build windows --release` | **Not run** — no Windows host or cross-compiler |
+
+The Linux release build compiles the entire shared codebase, so a compile error
+anywhere in the domain, data, hardware or interface layers would have failed it. It
+is real evidence that the code compiles. It is not evidence that the Android or
+Windows applications build; those need their own toolchains, and no claim is made
+that they would build without adjustment.
+
+### Tests added in Phase 10
+
+| Suite | Tests | Result |
+|---|---|---|
+| `test/integration/quality_assurance_test.dart` | 9 | Pass |
+
+These need a real file on disk rather than an in-memory database, because they ask
+questions an in-memory database cannot answer:
+
+- data written in one session is readable in the next;
+- a posted sale and its ledger survive a restart;
+- a fresh database and a full one both pass `PRAGMA integrity_check`;
+- foreign keys are enforced on a normally opened connection;
+- a database abandoned without a clean close reopens intact;
+- a failed sale leaves no invoice, no movement and no stock change;
+- a negative-stock sale is refused when the policy forbids it.
+
+### Final state
+
+- **427 tests pass**, `flutter analyze` reports no issues.
+- The Linux release build succeeds.
+- `docs/known_limitations.md` records what is unverified, including the honest
+  position on Android and Windows builds and on hardware.
+
+### What is not done
+
+The application is not finished. Read `docs/known_limitations.md` before trusting
+it with real money. The three largest gaps:
+
+1. **The Android and Windows applications have never been built.** Their project
+   files exist and are configured, but neither has been compiled.
+2. **No hardware has been tested.** No printer has printed a receipt and no scanner
+   has scanned a barcode.
+3. **The backup, restore and PIN screens are not wired to their services.** The
+   services are complete and tested; the interface is not.
