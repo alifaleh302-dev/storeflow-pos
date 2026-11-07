@@ -104,9 +104,12 @@ is configured but has not been built, because no Windows host or cross-compiler 
 available. No hardware has been tested.
 
 The Android release APK is published on the
-[releases page](https://github.com/hamoud302js-wq/storeflow-pos/releases) and is
+[releases page](https://github.com/alifaleh302-dev/storeflow-pos/releases) and is
 also produced at `build/app/outputs/flutter-apk/app-release.apk` by
-`flutter build apk --release`.
+`flutter build apk --release`. Always run
+`scripts/verify_apk_native_libs.sh` on it before distributing: the `v1.0.0` APK was
+built without SQLite in it and crashed on the first database call. `v1.0.1` fixes
+that. See [`docs/installation.md`](docs/installation.md).
 
 Read [`docs/known_limitations.md`](docs/known_limitations.md) before relying on any
 unverified feature. The APK has never been launched on a device.
