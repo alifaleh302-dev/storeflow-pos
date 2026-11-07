@@ -84,6 +84,31 @@ See `hardware_compatibility.md` for the device-by-device position.
 
 ## Interface
 
+**Every feature screen except the dashboard is a placeholder.** The domain, data
+and hardware-service layers are complete and tested, but the widgets that would
+drive them are not written. Each of these routes builds and renders a message
+saying the module is pending:
+
+| Route | Screen state |
+|---|---|
+| `/` | **Dashboard — built**, reads real data |
+| `/pos`, `/sales` | Placeholder |
+| `/products`, `/products/new`, `/products/{id}` | Placeholder |
+| `/inventory`, `/purchases`, `/suppliers` | Placeholder |
+| `/customers`, `/expenses`, `/cash-register` | Placeholder |
+| `/reports`, `/currencies`, `/backup`, `/settings` | Placeholder |
+
+So the application **cannot yet ring up a sale, add a product, record a purchase,
+take a payment, print a receipt, or make a backup from the interface.** The
+services that would do all of that exist and pass their tests; nothing calls them.
+
+This is verified by `test/widget/route_smoke_test.dart`, which boots the real
+router against a real database and visits every route at phone and desktop
+widths in Arabic and English, asserting that none of them throws. That proves the
+navigation is sound; it does not make the screens functional.
+
+Beyond that:
+
 - The backup, restore and PIN **screens are not wired to their services.** The
   services are complete and tested; the interface to drive them is not finished.
 - Arabic is the default language and the application runs right-to-left. Arabic

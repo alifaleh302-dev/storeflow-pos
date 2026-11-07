@@ -1,31 +1,38 @@
 # StoreFlow POS — Development Progress
 
-**Last updated:** 2026-11-03
-**Current phase:** Phase 10 complete — all phases done
+**Last updated:** 2026-11-07
+**Current phase:** Phase 10 complete — service layer done, user interface not built
 **Schema version:** 1
-**Tests:** 427 passing (`flutter test`), `flutter analyze` clean
+**Tests:** 435 passing (`flutter test`), `flutter analyze` clean
 
 This report states what is implemented, what is tested, and what is not. A
 feature is only listed as done when its code path runs against the real database
 and is covered by a test that was actually executed.
 
+> **Read this before the phase table.** "Complete" below means the phase's
+> *domain, data and service* layer is written and tested. It does **not** mean
+> the screens exist. Every feature page except the dashboard is a placeholder
+> that states on screen that it is pending; only the dashboard is wired to real
+> data. The application cannot yet ring up a sale, add a product, or take a
+> backup from the interface. `docs/known_limitations.md` has the full position.
+
 ---
 
 ## Phase status
 
-| Phase | Description | Status |
-|---|---|---|
-| 0 | Environment inspection | **Complete** — see `environment_report.md` |
-| 1 | Project foundation | **Complete** |
-| 2 | Products and inventory foundation | **Complete** |
-| 3 | Sales and POS | **Complete** |
-| 4 | Purchasing and suppliers | **Complete** |
-| 5 | Customers and financial management | **Complete** |
-| 6 | Multi-currency | **Complete** |
-| 7 | Printing and barcode hardware | **Complete** (adapters; no physical hardware verified) |
-| 8 | Reports and dashboard | **Complete** |
-| 9 | Backup and security | **Complete** |
-| 10 | Final quality assurance | **Complete** |
+| Phase | Description | Service layer | Screen |
+|---|---|---|---|
+| 0 | Environment inspection | **Complete** — see `environment_report.md` | — |
+| 1 | Project foundation | **Complete** | Dashboard built; shell, routing, theming done |
+| 2 | Products and inventory foundation | **Complete** | Placeholder |
+| 3 | Sales and POS | **Complete** | Placeholder |
+| 4 | Purchasing and suppliers | **Complete** | Placeholder |
+| 5 | Customers and financial management | **Complete** | Placeholder |
+| 6 | Multi-currency | **Complete** | Placeholder |
+| 7 | Printing and barcode hardware | **Complete** (adapters; no physical hardware verified) | Placeholder |
+| 8 | Reports and dashboard | **Complete** | Placeholder |
+| 9 | Backup and security | **Complete** | Placeholder |
+| 10 | Final quality assurance | **Complete** | — |
 
 ---
 
@@ -847,5 +854,14 @@ three ABIs — roughly 11.8 MB, consistent with the three ~1.7–4 MB libraries.
 
 ### Tests re-run after the fix
 
-**429 tests pass** (427 before, plus two new SQLite-availability tests) and
-`flutter analyze` reports no issues.
+**435 tests pass** (427 before, two new SQLite-availability tests, and six new
+route smoke tests that walk every route at phone and desktop widths in Arabic and
+English) and `flutter analyze` reports no issues.
+
+### A note on the phase table
+
+The phase table above used to mark every phase "Complete" with no qualification,
+which read as though the application were finished. It is not: the service layer
+is finished, the interface is not. The table now separates the two, and
+`known_limitations.md` states plainly that only the dashboard has a working
+screen.

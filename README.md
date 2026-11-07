@@ -6,30 +6,27 @@ shops, built with Flutter for **Android** and **Windows**.
 No internet connection, no cloud account and no subscription are required. All
 data stays in a local SQLite database on the device.
 
-> **Project status: Phase 1 of 10 complete.**
+> **Project status: the service layer is complete; the user interface is not.**
 > The foundation — architecture, exact-arithmetic money layer, database schema,
 > localisation, theming, routing, the adaptive shell and a database-backed
-> dashboard — is implemented and tested (429 passing tests).
-> **The business modules are not implemented yet.** Point of Sale, products,
-> purchases, customers, suppliers, expenses, cash register, reports, printing,
-> barcode scanning and backup are scheduled for Phases 2–9. Each of those pages
-> currently states on screen that it is pending. See
-> [`docs/development_progress.md`](docs/development_progress.md) for the honest
-> per-module status.
+> dashboard — is implemented and tested (435 passing tests), and so are the
+> domain, data and hardware-service layers for every feature below.
+> **The business screens are not built.** Point of Sale, products, purchases,
+> customers, suppliers, expenses, cash register, reports, printing, barcode
+> scanning and backup have complete, tested services but no working interface:
+> each of those pages currently states on screen that it is pending, and only the
+> dashboard reads real data. The application therefore cannot yet ring up a sale
+> from the interface. See
+> [`docs/known_limitations.md`](docs/known_limitations.md) for the honest
+> position and [`docs/development_progress.md`](docs/development_progress.md) for
+> the per-module status.
 
 ## Features
 
-### Implemented
+### Implemented — user interface
 
-- **Exact money arithmetic.** Integer minor units with per-currency precision.
-  No `double` anywhere in the money path.
-- **Exact quantities.** Scaled integers at a documented scale of 1000.
-- **Multi-currency foundation.** Rational exchange rates with a documented
-  conversion direction and historical immutability.
-- **Database.** 37 tables, 27 indexes, foreign keys enforced, WAL journalling,
-  versioned schema, idempotent seeding.
-- **Append-only ledgers** for inventory movements, customer accounts and
-  supplier accounts.
+Only the dashboard has a working screen.
+
 - **Dashboard** with ten live figures, a sales trend chart, top products and
   recent activity — all computed from posted rows, with no sample data.
 - **Period filters:** today, yesterday, this week, this month, custom range.
@@ -39,12 +36,35 @@ data stays in a local SQLite database on the device.
 - **Material 3** light and dark themes, with the Tajawal font for Arabic and
   Latin.
 
-### Planned
+### Implemented — services, with no screen yet
 
-Point of Sale, products, categories, units, barcodes, inventory ledger,
-purchases, suppliers, customers, debts, expenses, cash register, 17 reports with
-CSV export, ESC/POS printing with Arabic raster output, camera and USB HID
-barcode scanning, encrypted backup and restore, and PIN authentication.
+These are written and tested against the real database, but no page drives them.
+Their routes exist and show a "pending" message.
+
+- **Exact money arithmetic.** Integer minor units with per-currency precision.
+  No `double` anywhere in the money path.
+- **Exact quantities.** Scaled integers at a documented scale of 1000.
+- **Multi-currency.** Rational exchange rates with a documented conversion
+  direction and historical immutability.
+- **Database.** 37 tables, 27 indexes, foreign keys enforced, WAL journalling,
+  versioned schema, idempotent seeding.
+- **Append-only ledgers** for inventory movements, customer accounts and
+  supplier accounts.
+- **Sales, purchasing, inventory, customers, suppliers, expenses, cash register
+  and reporting services**, including atomic checkout and gap-free invoice
+  numbers.
+- **Printing and scanning adapters**: ESC/POS receipt building with an Arabic
+  raster renderer, and a keyboard-wedge barcode parser.
+- **Encrypted backup and restore** (`.sfp`, AES-256-GCM, Argon2id).
+
+### Not built
+
+- Every screen for the services listed above — Point of Sale, products,
+  categories, units, barcodes, inventory, purchases, suppliers, customers,
+  debts, expenses, cash register, the 17 reports with CSV export, printing,
+  barcode scanning, encrypted backup, and PIN authentication.
+- Android camera barcode scanning (no ML Kit dependency, no camera permission).
+- Database encryption at rest (only backups are encrypted).
 
 ## Technology
 
@@ -98,7 +118,7 @@ scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
 
 ## Verification status
 
-The whole test suite passes (429 tests), `flutter analyze` is clean, and release
+The whole test suite passes (435 tests), `flutter analyze` is clean, and release
 builds have been produced for **Android** and **Linux**. The **Windows** application
 is configured but has not been built, because no Windows host or cross-compiler is
 available. No hardware has been tested.
@@ -118,7 +138,7 @@ unverified feature. The APK has never been launched on a device.
 
 ```sh
 flutter analyze                          # static analysis
-flutter test                             # all 429 tests
+flutter test                             # all 435 tests
 flutter test test/unit                   # arithmetic core
 flutter test test/integration            # database, constraints, transactions
 flutter test test/widget                 # router, shell, localisation, dashboard
@@ -144,7 +164,7 @@ flutter test test/widget                 # router, shell, localisation, dashboar
 | Android | **Release APK builds, bundles `libsqlite3.so` for every ABI, verified by script.** Not run on a device (none available). |
 | Windows | **Configured, not built.** Requires a Windows host with Visual Studio. |
 | Linux | Builds and runs; development and visual QA only, not shipped. |
-| Tests | 429 passing on the Dart VM. |
+| Tests | 435 passing on the Dart VM. |
 | Static analysis | Clean. |
 
 Screenshots from the running application are in
