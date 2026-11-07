@@ -335,3 +335,22 @@ keytool -genkeypair -v \
 When `android/key.properties` is absent the release build falls back to the debug
 keys so `flutter run --release` still works on a fresh checkout. A build made that
 way is **not** suitable for distribution.
+
+Because that fallback is silent — the resulting APK looks fine and installs
+normally — a publishable build should refuse it. Pass the guard flag, and verify
+the signature afterwards:
+
+```bash
+flutter build apk --release -Prequire.release.signing=true
+scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk \
+  --require-release-signature
+```
+
+With `-Prequire.release.signing=true` the Gradle build **fails** if
+`android/key.properties` is missing, instead of quietly producing a debug-signed
+artifact. The script's `--require-release-signature` flag does the same check on
+the finished APK using `apksigner`.
+
+CI does not have the keystore, so its APK job is debug-signed on purpose and its
+artifact is named `storeflow-pos-apk-debug-signed` to say so. The job's purpose is
+to prove the SQLite native asset is bundled, not to produce something publishable.

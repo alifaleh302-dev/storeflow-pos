@@ -7,11 +7,27 @@ plugins {
 }
 
 // The release keystore lives outside the repository and is never committed.
-// When android/key.properties is absent the release build falls back to the debug
-// keys, which keeps `flutter run --release` working on a fresh checkout.
+// When android/key.properties is absent, a release build falls back to the debug
+// keys so that `flutter run --release` still works on a fresh checkout. That
+// fallback is refused when -Prequire.release.signing=true is passed, which CI
+// does: a build that is meant to be published must never be debug-signed by
+// accident, because the mistake is invisible in the artifact.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
+}
+
+val hasReleaseKeystore = keystoreProperties.getProperty("storeFile") != null
+val requireReleaseSigning =
+    (project.findProperty("require.release.signing") as String?) == "true"
+
+if (requireReleaseSigning && !hasReleaseKeystore) {
+    throw GradleException(
+        "Release signing was required (-Prequire.release.signing=true) but " +
+            "android/key.properties is missing or has no storeFile. " +
+            "Provide the keystore, or drop the flag to build a debug-signed " +
+            "artifact for local testing.",
+    )
 }
 
 android {
@@ -25,23 +41,16 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.storeflow.storeflow_pos"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
-        // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
-        // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
-        // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            if (keystoreProperties.getProperty("storeFile") != null) {
+            if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.create("release") {
                     storeFile = file(keystoreProperties.getProperty("storeFile"))
                     storePassword = keystoreProperties.getProperty("storePassword")

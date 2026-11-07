@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Verifies that an Android APK actually contains the native libraries the
-# application needs at runtime.
+# Verifies that an Android APK is fit to ship: that it contains the native
+# libraries the application needs at runtime, and (optionally) that it is
+# signed with a real release key rather than the debug key.
 #
 # Why this exists: package:sqlite3 3.x delivers SQLite as a Dart *native asset*,
 # not as a platform plugin. If the build machine has Flutter's native-assets
@@ -14,10 +15,24 @@
 # run on a host that has a system SQLite. This script is the cheap check that
 # closes the gap.
 #
-# Usage: scripts/verify_apk_native_libs.sh [path-to.apk]
+# Usage:
+#   scripts/verify_apk_native_libs.sh [path-to.apk] [--require-release-signature]
+#
+# Without --require-release-signature the signature is only reported, because a
+# local `flutter build apk --release` with no keystore is legitimately
+# debug-signed. Publishing pipelines should pass the flag.
 set -euo pipefail
 
-APK="${1:-build/app/outputs/flutter-apk/app-release.apk}"
+APK=""
+REQUIRE_RELEASE_SIGNATURE=0
+for arg in "$@"; do
+  case "$arg" in
+    --require-release-signature) REQUIRE_RELEASE_SIGNATURE=1 ;;
+    -*) echo "Unknown option: $arg" >&2; exit 2 ;;
+    *) APK="$arg" ;;
+  esac
+done
+APK="${APK:-build/app/outputs/flutter-apk/app-release.apk}"
 REQUIRED_LIB="libsqlite3.so"
 REQUIRED_SYMBOL="sqlite3_initialize"
 
@@ -102,3 +117,38 @@ HINT
 fi
 
 echo "All shipped ABIs contain $REQUIRED_LIB."
+
+# Report, and optionally enforce, the signing certificate. A debug-signed APK
+# cannot be published to a store and cannot be upgraded by a release-signed one,
+# so the distinction matters — and it is invisible without inspecting the file.
+apksigner=""
+for candidate in \
+  "${ANDROID_HOME:-}/build-tools/"*/apksigner \
+  "${ANDROID_SDK_ROOT:-}/build-tools/"*/apksigner; do
+  [[ -x "$candidate" ]] && apksigner="$candidate" && break
+done
+apksigner="${apksigner:-$(command -v apksigner || true)}"
+
+if [[ -n "$apksigner" ]]; then
+  signer_line="$("$apksigner" verify --print-certs "$APK" 2>/dev/null \
+    | grep -i "signer #1 certificate DN" || true)"
+  if [[ -n "$signer_line" ]]; then
+    echo "Signature: ${signer_line#*: }"
+    if [[ "$signer_line" == *"Android Debug"* ]]; then
+      if (( REQUIRE_RELEASE_SIGNATURE )); then
+        echo "FAIL: the APK is debug-signed, and a release signature was required." >&2
+        echo "Provide android/key.properties and rebuild, or drop --require-release-signature." >&2
+        exit 1
+      fi
+      echo "NOTE: debug-signed. Fine for testing, not for publishing."
+    fi
+  fi
+else
+  echo "NOTE: apksigner not found; signature not checked."
+  if (( REQUIRE_RELEASE_SIGNATURE )); then
+    echo "FAIL: --require-release-signature was given but apksigner is unavailable." >&2
+    exit 1
+  fi
+fi
+
+exit 0

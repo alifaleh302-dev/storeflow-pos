@@ -46,7 +46,7 @@ jobs:
         run: flutter test
 
   build-apk:
-    name: Build release APK and verify native libraries
+    name: Build APK and verify native libraries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,18 +71,23 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Build release APK
+      # No keystore is available here, so this build is debug-signed and is NOT
+      # a publishable artifact. It exists to prove the SQLite native asset is
+      # bundled. A real release is signed locally with android/key.properties
+      # and built with -Prequire.release.signing=true; see docs/installation.md.
+      - name: Build APK
         run: flutter build apk --release
 
       # Fails the job if libsqlite3.so is missing or does not export the entry
       # point the FFI bindings look up. This is the regression guard for the
-      # crash the application shipped with.
+      # crash the application shipped with. It also prints the signing
+      # certificate so the debug-signed status is visible in the log.
       - name: Verify the APK bundles SQLite
         run: scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
 
-      - name: Upload APK
+      - name: Upload APK (debug-signed, for verification only)
         uses: actions/upload-artifact@v4
         with:
-          name: storeflow-pos-release-apk
+          name: storeflow-pos-apk-debug-signed
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
