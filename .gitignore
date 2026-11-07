@@ -27,3 +27,6 @@ Thumbs.db
 # Release build output. The APK is published as a GitHub release asset rather
 # than committed, to keep large binaries out of the repository history.
 dist/
+
+# Agent working notes and memory, not part of the project.
+.openhands/
