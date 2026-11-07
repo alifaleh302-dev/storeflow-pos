@@ -24,6 +24,20 @@ internet connection to run.
 | Visual Studio 2022 | with "Desktop development with C++" | Windows builds only |
 | Git | any recent version | |
 
+**Flutter's native-assets feature must be on.** SQLite is shipped to Android as a
+Dart native asset rather than as a platform plugin, so the build machine has to
+bundle it:
+
+```sh
+flutter config --enable-native-assets
+```
+
+The feature is enabled by default on the stable channel. It is only a problem on a
+machine where it was explicitly switched off — and the symptom is quiet: the APK
+builds, installs and launches, then dies on the first database query with
+`Couldn't resolve native function 'sqlite3_initialize'`. The
+`scripts/verify_apk_native_libs.sh` check below catches it before shipping.
+
 Linux and macOS are not shipped targets. A Linux desktop target exists in this
 repository for development and headless visual QA; it is not a product deliverable.
 
@@ -58,11 +72,22 @@ flutter run -d <device-id>
 For a release build:
 
 ```sh
+flutter config --enable-native-assets   # required, see "To build from source"
 flutter build apk --release              # single APK
 flutter build appbundle --release        # Play Store bundle
 ```
 
 Output: `build/app/outputs/flutter-apk/app-release.apk`
+
+Then confirm the package actually contains the database engine:
+
+```sh
+scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
+```
+
+That script checks every shipped ABI for `libsqlite3.so` and for the
+`sqlite3_initialize` entry point the Dart bindings look up. It is the cheap
+guard against the "native library missing" crash described in Troubleshooting.
 
 A release build must be signed with your own key before distribution. The
 generated `android/app/build.gradle.kts` currently signs release builds with the
@@ -133,7 +158,7 @@ doing that.**
 
 ```sh
 flutter analyze     # expect: No issues found!
-flutter test        # expect: 97 tests passed
+flutter test        # expect: all tests passed
 ```
 
 To confirm the database is healthy:
@@ -145,6 +170,52 @@ sqlite3 <path-to>/storeflow.sqlite "PRAGMA integrity_check; PRAGMA foreign_key_c
 Both should report no problems.
 
 ## Troubleshooting
+
+### `Couldn't resolve native function 'sqlite3_initialize'` on Android
+
+The full message looks like this:
+
+```
+Invalid argument(s): Couldn't resolve native function 'sqlite3_initialize'
+in 'package:sqlite3/src/ffi/libsqlite3.g.dart' : No asset with id
+'package:sqlite3/src/ffi/libsqlite3.g.dart' found. No available native assets.
+Attempted to fallback to process lookup. undefined symbol: sqlite3_initialize.
+```
+
+The APK was built without SQLite in it. Since package:sqlite3 3.x, SQLite is a
+Dart **native asset**: it is compiled and bundled by the build hooks, not by a
+platform plugin. If the build machine has the native-assets feature switched off,
+the APK still builds, installs and launches — it simply has no `libsqlite3.so`,
+and the crash arrives at the first database call.
+
+`sqlite3_flutter_libs` does not fix this. From version 0.6.0 that package is an
+empty no-op; it exists only so that apps migrating to sqlite3 3.x cannot
+accidentally keep the old 0.5.x build scripts.
+
+Fix: enable the feature and rebuild from clean.
+
+```sh
+flutter config --enable-native-assets
+flutter clean
+flutter pub get
+flutter build apk --release
+scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
+```
+
+The script must report that every shipped ABI contains `libsqlite3.so`. If it
+does, the rebuilt APK starts normally.
+
+### `Package(s) ... require the dart assets feature to be enabled` during the build
+
+The same cause as above, caught earlier. On some Flutter versions the build stops
+with this message instead of producing a broken APK:
+
+```
+Package(s) cnativeapi objective_c sqlite3 require the dart assets feature to be
+enabled. Enable code assets using `flutter config --enable-native-assets`.
+```
+
+Run `flutter config --enable-native-assets` and build again.
 
 ### `armeabi is no longer supported` during the Android build
 
@@ -205,9 +276,13 @@ export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export ANDROID_SDK_ROOT=/opt/android-sdk
 export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
 
+flutter config --enable-native-assets
 flutter pub get
 flutter build apk --release
 # Artifact: build/app/outputs/flutter-apk/app-release.apk
+
+scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
+# expect: OK for arm64-v8a, armeabi-v7a and x86_64
 ```
 
 | Property | Value |
@@ -216,12 +291,24 @@ flutter build apk --release
 | Version | `1.0.0` (versionCode 1) |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | Architectures | arm64-v8a, armeabi-v7a, x86_64 |
-| Size | 56.3 MB |
+| Native libraries | `libsqlite3.so` bundled for every ABI |
+| Size | 68.1 MB |
 | Signature | APK Signature Scheme v2, release keystore |
 | Debuggable | no |
 
 The toolchain used: JDK 21, Android SDK 36.1.0, build-tools 36.1.0, NDK 28.2.13676358,
 Gradle 9.3.1, AGP 9.1.0.
+
+### The 1.0.0 release artifact was broken
+
+The APK published as `v1.0.0` was built on a machine with the native-assets
+feature switched off. It installs and launches, then fails at the first database
+call with `Couldn't resolve native function 'sqlite3_initialize'` — see
+Troubleshooting. Inspecting that artifact shows the cause directly: it contains
+`libapp.so` and `libflutter.so` for each ABI and no `libsqlite3.so` at all.
+
+The rebuild above fixes it, and `scripts/verify_apk_native_libs.sh` now fails the
+build if the library goes missing again.
 
 ### Signing
 

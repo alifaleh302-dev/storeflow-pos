@@ -751,6 +751,10 @@ gap in Phase 10, and it is now closed.
 
 ### Result
 
+> **Superseded.** This artifact is the one that shipped broken — see
+> "Post-release fix: the published APK was missing SQLite" at the end of this
+> document. The table is kept as the record of what was published.
+
 | Property | Value |
 |---|---|
 | Artifact | `dist/StoreFlowPOS-1.0.0-release.apk` |
@@ -778,3 +782,70 @@ The APK has never been run. It is built, signed and installable, but no device o
 emulator has launched it, so its runtime behaviour on Android is unknown. Android
 camera barcode scanning is also not implemented — there is no ML Kit dependency and
 no camera permission. Both facts are recorded in `known_limitations.md`.
+
+## Post-release fix: the published APK was missing SQLite
+
+The `v1.0.0` APK that was published to the releases page does not work on a real
+device. It installs and launches, then fails on the first database call:
+
+```
+Invalid argument(s): Couldn't resolve native function 'sqlite3_initialize'
+in 'package:sqlite3/src/ffi/libsqlite3.g.dart' : No asset with id
+'package:sqlite3/src/ffi/libsqlite3.g.dart' found. No available native assets.
+Attempted to fallback to process lookup. undefined symbol: sqlite3_initialize.
+```
+
+### Cause
+
+Since `package:sqlite3` 3.x, SQLite is delivered as a Dart **native asset** (a
+"code asset"), compiled and bundled by the package's own build hook. It is no
+longer shipped by the `sqlite3_flutter_libs` platform plugin — and from 0.6.0 that
+package is an empty no-op, present only to stop apps from keeping the old 0.5.x
+build scripts. So `sqlite3_flutter_libs` in `pubspec.yaml` gave a false sense that
+SQLite was being bundled when it did nothing.
+
+The APK was built on a machine where the native-assets feature was switched off
+(`flutter config --no-enable-native-assets`). With the feature off the build
+succeeds, the app runs, and the library is simply absent from the package. Nothing
+in `flutter analyze` or `flutter test` noticed, because the tests run on a host
+with a system SQLite and never load the Android copy.
+
+Inspecting the published artifact makes the defect visible: it contains
+`lib/<abi>/libapp.so` and `lib/<abi>/libflutter.so` for each ABI, and no
+`lib/<abi>/libsqlite3.so` at all.
+
+### Fix
+
+1. **Removed `sqlite3_flutter_libs`** from `pubspec.yaml`, with a comment
+   explaining that SQLite comes from `package:sqlite3` itself and that native
+   assets must be enabled on the build machine.
+2. **Added a startup probe** (`checkSqliteAvailability()` in
+   `lib/infrastructure/database/app_database.dart`). `bootstrap()` calls it before
+   opening the database and, if the library is missing, shows a screen that names
+   the cause and the exact rebuild commands, instead of a raw FFI crash.
+3. **Added `scripts/verify_apk_native_libs.sh`**, which inspects an APK and fails
+   if any shipped ABI lacks `libsqlite3.so` or if the library does not export
+   `sqlite3_initialize`. Verified against both artifacts: it fails the published
+   APK and passes the rebuilt one.
+4. **Added CI** (`.github/workflows/ci.yml`) that runs analyze and tests, builds a
+   release APK, and runs the verification script, so this cannot ship again.
+5. **Documented it** in `installation.md` (build requirements and Troubleshooting)
+   and `known_limitations.md`.
+
+### Rebuilt artifact
+
+| Property | Value |
+|---|---|
+| Artifact | `build/app/outputs/flutter-apk/app-release.apk` |
+| Size | 68.1 MB |
+| SHA-256 | `9472e30b99a711cf6f7b8ac432021de0ae8c2c98031d199e938318f650951e28` |
+| Native libraries | `libsqlite3.so` for arm64-v8a, armeabi-v7a, x86_64 |
+| Symbol check | exports `sqlite3_initialize` on every ABI |
+
+The size grew from 56.3 MB to 68.1 MB, which is the SQLite library appearing for
+three ABIs — roughly 11.8 MB, consistent with the three ~1.7–4 MB libraries.
+
+### Tests re-run after the fix
+
+**429 tests pass** (427 before, plus two new SQLite-availability tests) and
+`flutter analyze` reports no issues.

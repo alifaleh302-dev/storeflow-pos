@@ -9,7 +9,7 @@ data stays in a local SQLite database on the device.
 > **Project status: Phase 1 of 10 complete.**
 > The foundation — architecture, exact-arithmetic money layer, database schema,
 > localisation, theming, routing, the adaptive shell and a database-backed
-> dashboard — is implemented and tested (97 passing tests).
+> dashboard — is implemented and tested (429 passing tests).
 > **The business modules are not implemented yet.** Point of Sale, products,
 > purchases, customers, suppliers, expenses, cash register, reports, printing,
 > barcode scanning and backup are scheduled for Phases 2–9. Each of those pages
@@ -87,9 +87,18 @@ flutter build windows --release          # Windows (on a Windows host)
 flutter build linux --release            # Linux (verified: see docs/known_limitations.md)
 ```
 
+Before any release build, make sure Flutter's native-assets feature is on —
+SQLite reaches Android as a Dart native asset, and with the feature off the APK
+silently ships without `libsqlite3.so`:
+
+```sh
+flutter config --enable-native-assets
+scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
+```
+
 ## Verification status
 
-The whole test suite passes (427 tests), `flutter analyze` is clean, and release
+The whole test suite passes (429 tests), `flutter analyze` is clean, and release
 builds have been produced for **Android** and **Linux**. The **Windows** application
 is configured but has not been built, because no Windows host or cross-compiler is
 available. No hardware has been tested.
@@ -106,7 +115,7 @@ unverified feature. The APK has never been launched on a device.
 
 ```sh
 flutter analyze                          # static analysis
-flutter test                             # all 427 tests
+flutter test                             # all 429 tests
 flutter test test/unit                   # arithmetic core
 flutter test test/integration            # database, constraints, transactions
 flutter test test/widget                 # router, shell, localisation, dashboard
@@ -129,10 +138,10 @@ flutter test test/widget                 # router, shell, localisation, dashboar
 
 | Target | Status |
 |---|---|
-| Android | **Debug APK builds.** Not run on a device (none available). |
+| Android | **Release APK builds, bundles `libsqlite3.so` for every ABI, verified by script.** Not run on a device (none available). |
 | Windows | **Configured, not built.** Requires a Windows host with Visual Studio. |
 | Linux | Builds and runs; development and visual QA only, not shipped. |
-| Tests | 97 passing on the Dart VM. |
+| Tests | 429 passing on the Dart VM. |
 | Static analysis | Clean. |
 
 Screenshots from the running application are in

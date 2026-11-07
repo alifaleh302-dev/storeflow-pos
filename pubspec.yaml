@@ -16,7 +16,16 @@ dependencies:
   flutter_riverpod: ^3.4.3
   go_router: ^18.1.2
   drift: ^2.35.3
-  sqlite3_flutter_libs: ^0.6.0+eol
+  # SQLite is bundled into the application by package:sqlite3 3.x itself, using
+  # Dart's native-assets (code assets) feature. That feature must be enabled on
+  # the build machine: `flutter config --enable-native-assets`. It is on by
+  # default on the stable channel, but a machine that disabled it produces an
+  # APK with no libsqlite3.so, which crashes at the first query with
+  # "Couldn't resolve native function 'sqlite3_initialize'".
+  #
+  # sqlite3_flutter_libs is deliberately NOT a dependency. From 0.6.0 it is an
+  # empty no-op ("Not used anymore, update to version 3.x of package:sqlite3"),
+  # so depending on it looks like it bundles SQLite when it does nothing.
   sqlite3: ^3.8.0
   path_provider: ^2.1.6
   path: ^1.9.1

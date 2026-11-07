@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  analyze-and-test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+
+      # SQLite reaches Android as a Dart native asset. Turn the feature on
+      # explicitly rather than relying on the channel default, so the APK check
+      # in the other job is meaningful.
+      - name: Enable native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate localisations
+        run: flutter gen-l10n
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  build-apk:
+    name: Build release APK and verify native libraries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          channel: stable
+          cache: true
+
+      - name: Enable native assets
+        run: flutter config --enable-native-assets
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      # Fails the job if libsqlite3.so is missing or does not export the entry
+      # point the FFI bindings look up. This is the regression guard for the
+      # crash the application shipped with.
+      - name: Verify the APK bundles SQLite
+        run: scripts/verify_apk_native_libs.sh build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: storeflow-pos-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

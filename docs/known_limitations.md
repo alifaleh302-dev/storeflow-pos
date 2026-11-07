@@ -11,7 +11,7 @@ verified and what could not.
 
 | Target | Status | Evidence |
 |---|---|---|
-| Android | **Release APK built and verified** | `dist/StoreFlowPOS-1.0.0-release.apk`, 56.3 MB, signed with the release key |
+| Android | **Release APK built and verified** | `build/app/outputs/flutter-apk/app-release.apk`, 68.1 MB, bundles `libsqlite3.so` for arm64-v8a, armeabi-v7a and x86_64 |
 | Linux desktop | **Release build succeeded** | `build/linux/x64/release/bundle/storeflow_pos`, 142 MB bundle |
 | Windows desktop | Configured, **not built** | `windows/` target present; no Windows host or cross-compiler available |
 
@@ -22,6 +22,13 @@ anywhere would have failed it. It is real evidence that the code is sound.
 The Android release APK was built here too, with JDK 21 and Android SDK 36, and its
 signature verified with `apksigner`. What that proves is that the code compiles for
 Android and packages correctly.
+
+**The first published APK was not correct.** The `v1.0.0` release asset was built on
+a machine with Flutter's native-assets feature switched off, so it shipped without
+the SQLite native library and crashed at the first database call on a real device
+(`Couldn't resolve native function 'sqlite3_initialize'`). The cause is recorded in
+`installation.md`; `scripts/verify_apk_native_libs.sh` now inspects every shipped ABI
+for the library and the symbol the FFI bindings need, and CI runs it on every build.
 
 It is **not** evidence that the Windows application builds, which needs its own
 toolchain and a Windows host. Nor has the APK been run on a real device or emulator:

@@ -299,3 +299,28 @@ QueryExecutor _openConnection(String? overridePath) {
 
 /// Reads the SQLite library version actually linked at runtime, for diagnostics.
 String sqliteRuntimeVersion() => sqlite3.version.libVersion;
+
+/// Returns `null` when the native SQLite library is usable, or a short
+/// description of the problem when it is not.
+///
+/// package:sqlite3 3.x ships SQLite as a Dart native asset (a code asset) rather
+/// than through a platform plugin. If the APK was built without native-asset
+/// bundling — for example on a machine where `enable-native-assets` was turned
+/// off — the process starts and the UI renders, then the *first* database call
+/// dies inside the FFI bindings with
+///
+///   Couldn't resolve native function 'sqlite3_initialize' ... No available
+///   native assets ... undefined symbol: sqlite3_initialize
+///
+/// which points at generated code and tells the user nothing. Probing here lets
+/// bootstrap() replace that with an explanation and a remedy.
+String? checkSqliteAvailability() {
+  try {
+    // Reading this property is what forces the FFI lookup of the native
+    // library, so the value itself is not what matters here.
+    final version = sqlite3.version.libVersion;
+    return version.isEmpty ? 'SQLite reported an empty version string' : null;
+  } catch (error) {
+    return error.toString();
+  }
+}

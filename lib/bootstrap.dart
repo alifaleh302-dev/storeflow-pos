@@ -21,6 +21,20 @@ Future<void> bootstrap() async {
     await _configureDesktopWindow();
   }
 
+  // Check the native SQLite library before anything touches the database, so a
+  // packaging fault is reported as a packaging fault instead of an FFI crash.
+  final sqliteProblem = checkSqliteAvailability();
+  if (sqliteProblem != null) {
+    debugPrint('Startup failed: SQLite is not available: $sqliteProblem');
+    runApp(
+      const _StartupFailureApp(
+        title: 'Database engine unavailable',
+        message: _missingSqliteMessage,
+      ),
+    );
+    return;
+  }
+
   try {
     final database = AppDatabase.open();
     // Force the first connection so schema creation and migrations complete
@@ -38,6 +52,23 @@ Future<void> bootstrap() async {
     runApp(_StartupFailureApp(message: error.toString()));
   }
 }
+
+/// Shown when the application starts but the SQLite native library was not
+/// bundled into the package.
+///
+/// This is a build defect, not a data problem, so the message names the cause
+/// and the exact fix rather than showing a stack trace.
+const String _missingSqliteMessage =
+    'The application package does not contain the SQLite native library, so '
+    'the database cannot be opened.\n\n'
+    'This happens when the application is built on a machine where Flutter\'s '
+    'native-assets feature is switched off. SQLite is shipped to Android as a '
+    'Dart native asset; with the feature off the library is simply left out of '
+    'the APK.\n\n'
+    'Rebuild with native assets enabled:\n'
+    '    flutter config --enable-native-assets\n'
+    '    flutter clean\n'
+    '    flutter build apk --release';
 
 bool get _isDesktop =>
     !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
@@ -61,8 +92,15 @@ Future<void> _configureDesktopWindow() async {
 
 /// Minimal error screen used when startup itself fails.
 class _StartupFailureApp extends StatelessWidget {
-  const _StartupFailureApp({required this.message});
+  const _StartupFailureApp({
+    required this.message,
+    this.title = 'StoreFlow POS could not start',
+  });
 
+  /// Headline shown above the message.
+  final String title;
+
+  /// Explanation of the failure, shown selectable so it can be copied.
   final String message;
 
   @override
@@ -70,21 +108,30 @@ class _StartupFailureApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline, size: 64),
-                const SizedBox(height: 16),
-                const Text(
-                  'StoreFlow POS could not start',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    SelectableText(message, textAlign: TextAlign.center),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                SelectableText(message, textAlign: TextAlign.center),
-              ],
+              ),
             ),
           ),
         ),

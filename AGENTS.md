@@ -15,7 +15,7 @@ dart run build_runner build      # after changing a Drift table
 flutter gen-l10n                 # after changing an .arb file
 
 flutter analyze                  # must stay clean
-flutter test                     # 97 tests, must stay green
+flutter test                     # all tests, must stay green
 flutter build apk --debug
 ```
 
