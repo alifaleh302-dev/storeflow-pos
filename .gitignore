@@ -25,5 +25,5 @@ Thumbs.db
 /tmp/
 
 # Release build output. The APK is published as a GitHub release asset rather
-# than committed, to keep 56 MB binaries out of the repository history.
+# than committed, to keep large binaries out of the repository history.
 dist/
